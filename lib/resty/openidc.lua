@@ -139,6 +139,13 @@ local function openidc_get_redirect_uri(opts)
   return scheme.."://"..ngx.var.http_host..opts.redirect_uri_path
 end
 
+-- assemble the post_logout_redirect_uri
+local function openidc_post_logout_redirect_uri(opts)
+  local scheme = opts.redirect_uri_scheme or ngx.req.get_headers()['X-Forwarded-Proto'] or ngx.var.scheme
+  local post_logout_redirect_uri_path = opts.post_logout_redirect_uri_path or '/'
+  return scheme.."://"..ngx.var.http_host..post_logout_redirect_uri_path
+end
+
 -- perform base64url decoding
 local function openidc_base64_url_decode(input)
   local reminder = #input % 4
@@ -497,7 +504,12 @@ local function openidc_logout(opts, session)
   elseif opts.redirect_after_logout_uri then
     return ngx.redirect(opts.redirect_after_logout_uri)
   elseif opts.discovery.end_session_endpoint then
-    return ngx.redirect(opts.discovery.end_session_endpoint)
+    -- assemble the parameters to the logout request
+    local params = {
+      client_id=opts.client_id,
+      post_logout_redirect_uri=openidc_post_logout_redirect_uri(opts)
+    }
+    return ngx.redirect(opts.discovery.end_session_endpoint.."?"..ngx.encode_args(params))
   elseif opts.discovery.ping_end_session_endpoint then
     return ngx.redirect(opts.discovery.ping_end_session_endpoint)
   end
